@@ -86,14 +86,14 @@ const sources = {
     'https://raw.githubusercontent.com/d3cn/data/master/json/geo/china/province-city/guangdong.geojson',
   ],
   hongKong: [
+    'https://geo.datav.aliyun.com/areas_v3/bound/810000.json',
     'https://cdn.jsdelivr.net/gh/mouday/echarts-map@master/echarts-4.2.1-rc1-map/json/province/xianggang.json',
     'https://raw.githubusercontent.com/mouday/echarts-map/master/echarts-4.2.1-rc1-map/json/province/xianggang.json',
-    'https://geo.datav.aliyun.com/areas_v3/bound/810000.json',
   ],
   macau: [
+    'https://geo.datav.aliyun.com/areas_v3/bound/820000.json',
     'https://cdn.jsdelivr.net/gh/mouday/echarts-map@master/echarts-4.2.1-rc1-map/json/province/aomen.json',
     'https://raw.githubusercontent.com/mouday/echarts-map/master/echarts-4.2.1-rc1-map/json/province/aomen.json',
-    'https://geo.datav.aliyun.com/areas_v3/bound/820000.json',
   ],
 }
 
