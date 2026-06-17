@@ -1,4 +1,5 @@
 import { CITY_LIST, type CityName } from './constants'
+import * as ChinaMapGeojson from 'china-map-geojson'
 
 type GeoJsonFeature = {
   type: 'Feature'
@@ -13,24 +14,6 @@ export type GeoJson = {
   type: 'FeatureCollection'
   features: GeoJsonFeature[]
 }
-
-const GUANGDONG_SOURCES = [
-  'https://cdn.jsdelivr.net/gh/d3cn/data@master/json/geo/china/province-city/guangdong.geojson',
-  'https://raw.githubusercontent.com/d3cn/data/master/json/geo/china/province-city/guangdong.geojson',
-  'https://geo.datav.aliyun.com/areas_v3/bound/440000_full.json',
-]
-
-const HONG_KONG_SOURCES = [
-  'https://cdn.jsdelivr.net/gh/mouday/echarts-map@master/echarts-4.2.1-rc1-map/json/province/xianggang.json',
-  'https://raw.githubusercontent.com/mouday/echarts-map/master/echarts-4.2.1-rc1-map/json/province/xianggang.json',
-  'https://geo.datav.aliyun.com/areas_v3/bound/810000.json',
-]
-
-const MACAU_SOURCES = [
-  'https://cdn.jsdelivr.net/gh/mouday/echarts-map@master/echarts-4.2.1-rc1-map/json/province/aomen.json',
-  'https://raw.githubusercontent.com/mouday/echarts-map/master/echarts-4.2.1-rc1-map/json/province/aomen.json',
-  'https://geo.datav.aliyun.com/areas_v3/bound/820000.json',
-]
 
 const aliasMap: Record<string, CityName> = {
   广州: '广州市',
@@ -62,12 +45,18 @@ const aliasMap: Record<string, CityName> = {
   澳門特別行政區: '澳门特别行政区',
 }
 
-export async function loadGuangdongMap(): Promise<GeoJson> {
-  const [guangdong, hongKong, macau] = await Promise.all([
-    fetchFirst(GUANGDONG_SOURCES),
-    fetchFirst(HONG_KONG_SOURCES),
-    fetchFirst(MACAU_SOURCES),
-  ])
+export function loadGuangdongMap(): GeoJson {
+  const packageData = normalizePackage(ChinaMapGeojson)
+  const provinceData = packageData.ProvinceData || packageData.provinceData || packageData.province || packageData.default?.ProvinceData
+  const chinaData = packageData.ChinaData || packageData.chinaData || packageData.china || packageData.default?.ChinaData
+
+  const guangdong = findGeoJson(provinceData, ['广东省', '广东', 'guangdong', '440000'])
+  const hongKong = findGeoJson(chinaData || provinceData, ['香港特别行政区', '香港', 'xianggang', '810000'])
+  const macau = findGeoJson(chinaData || provinceData, ['澳门特别行政区', '澳门', '澳門', 'aomen', '820000'])
+
+  if (!guangdong) throw new Error('地图包中没有找到广东省市级 GeoJSON')
+  if (!hongKong) throw new Error('地图包中没有找到香港 GeoJSON')
+  if (!macau) throw new Error('地图包中没有找到澳门 GeoJSON')
 
   const cityFeatures = guangdong.features
     .map(normalizeFeature)
@@ -90,6 +79,10 @@ export async function loadGuangdongMap(): Promise<GeoJson> {
   return { type: 'FeatureCollection', features }
 }
 
+function normalizePackage(value: unknown): Record<string, any> {
+  return value && typeof value === 'object' ? value as Record<string, any> : {}
+}
+
 function normalizeFeature(feature: GeoJsonFeature): GeoJsonFeature {
   const rawName = String(feature.properties?.name || '')
   const normalizedName = aliasMap[rawName] || rawName
@@ -102,23 +95,63 @@ function normalizeFeature(feature: GeoJsonFeature): GeoJsonFeature {
   }
 }
 
-async function fetchFirst(urls: string[]): Promise<GeoJson> {
-  const errors: string[] = []
+function findGeoJson(source: unknown, candidates: string[]): GeoJson | null {
+  const direct = unwrapGeoJson(source)
+  if (direct) return direct
 
-  for (const url of urls) {
-    try {
-      const response = await fetch(url)
-      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
-      const geoJson = await response.json() as GeoJson
-      if (!geoJson.features?.length) throw new Error('GeoJSON 没有 features')
-      return geoJson
+  if (Array.isArray(source)) {
+    for (const item of source) {
+      if (matchesCandidate(item, candidates)) {
+        const geoJson = unwrapGeoJson(item)
+        if (geoJson) return geoJson
+      }
     }
-    catch (error) {
-      errors.push(`${url}：${String(error)}`)
+    return null
+  }
+
+  if (!source || typeof source !== 'object') return null
+
+  const objectSource = source as Record<string, unknown>
+  for (const key of candidates) {
+    const geoJson = unwrapGeoJson(objectSource[key])
+    if (geoJson) return geoJson
+  }
+
+  for (const value of Object.values(objectSource)) {
+    if (matchesCandidate(value, candidates)) {
+      const geoJson = unwrapGeoJson(value)
+      if (geoJson) return geoJson
     }
   }
 
-  throw new Error(`真实地图数据加载失败。\n${errors.join('\n')}`)
+  return null
+}
+
+function unwrapGeoJson(value: unknown): GeoJson | null {
+  if (!value || typeof value !== 'object') return null
+
+  const item = value as Record<string, any>
+  if (item.type === 'FeatureCollection' && Array.isArray(item.features)) return item as GeoJson
+
+  const nestedKeys = ['geoJson', 'geoJSON', 'geojson', 'json', 'data', 'map', 'value']
+  for (const key of nestedKeys) {
+    const nested = unwrapGeoJson(item[key])
+    if (nested) return nested
+  }
+
+  return null
+}
+
+function matchesCandidate(value: unknown, candidates: string[]) {
+  if (!value || typeof value !== 'object') return false
+  const item = value as Record<string, unknown>
+  const fields = ['name', 'fullname', 'label', 'title', 'adcode', 'code', 'id', 'pinyin', 'key']
+  return fields.some((field) => {
+    const fieldValue = item[field]
+    return typeof fieldValue === 'string' || typeof fieldValue === 'number'
+      ? candidates.includes(String(fieldValue))
+      : false
+  })
 }
 
 function mergeAsSingleFeature(collection: GeoJson, name: CityName): GeoJsonFeature {

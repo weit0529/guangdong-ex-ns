@@ -25,7 +25,7 @@ onMounted(async () => {
 
   try {
     chart = echarts.init(chartEl.value)
-    const mapData = await loadGuangdongMap()
+    const mapData = loadGuangdongMap()
     echarts.registerMap(MAP_NAME, mapData as any)
   }
   catch (error) {
@@ -230,7 +230,7 @@ function renderChart() {
       <div class="map-card">
       <div v-if="loading" class="loading">地图加载中...</div>
         <div v-else-if="loadError" class="loading error">
-          真实地图数据加载失败，请稍后刷新页面或检查网络。
+          地图数据加载失败：{{ loadError }}
         </div>
         <div ref="chartEl" class="chart" />
       </div>
