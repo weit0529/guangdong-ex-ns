@@ -27,6 +27,29 @@ const cityList = [
 ]
 
 const aliasMap = {
+  440100: '广州市',
+  440300: '深圳市',
+  440400: '珠海市',
+  440500: '汕头市',
+  440600: '佛山市',
+  440200: '韶关市',
+  441600: '河源市',
+  441400: '梅州市',
+  441300: '惠州市',
+  441500: '汕尾市',
+  441900: '东莞市',
+  442000: '中山市',
+  440700: '江门市',
+  441700: '阳江市',
+  440800: '湛江市',
+  440900: '茂名市',
+  441200: '肇庆市',
+  441800: '清远市',
+  445100: '潮州市',
+  445200: '揭阳市',
+  445300: '云浮市',
+  810000: '香港特别行政区',
+  820000: '澳门特别行政区',
   广州: '广州市',
   深圳: '深圳市',
   珠海: '珠海市',
@@ -58,9 +81,9 @@ const aliasMap = {
 
 const sources = {
   guangdong: [
+    'https://geo.datav.aliyun.com/areas_v3/bound/440000_full.json',
     'https://cdn.jsdelivr.net/gh/d3cn/data@master/json/geo/china/province-city/guangdong.geojson',
     'https://raw.githubusercontent.com/d3cn/data/master/json/geo/china/province-city/guangdong.geojson',
-    'https://geo.datav.aliyun.com/areas_v3/bound/440000_full.json',
   ],
   hongKong: [
     'https://cdn.jsdelivr.net/gh/mouday/echarts-map@master/echarts-4.2.1-rc1-map/json/province/xianggang.json',
@@ -132,7 +155,7 @@ async function fetchFirst(urls) {
 }
 
 function normalizeFeature(feature) {
-  const rawName = String(feature.properties?.name || '')
+  const rawName = getFeatureName(feature)
   const normalizedName = aliasMap[rawName] || rawName
 
   return {
@@ -142,6 +165,36 @@ function normalizeFeature(feature) {
       name: normalizedName,
     },
   }
+}
+
+function getFeatureName(feature) {
+  const properties = feature.properties || {}
+  const keys = [
+    'name',
+    'NAME',
+    'Name',
+    'fullname',
+    'fullName',
+    'FULLNAME',
+    'NAME_1',
+    'NAME_2',
+    'NL_NAME_1',
+    'NL_NAME_2',
+    'adcode',
+    'ADCODE',
+    'code',
+    'CODE',
+    'id',
+    'ID',
+  ]
+
+  for (const key of keys) {
+    if (properties[key] !== undefined && properties[key] !== null && properties[key] !== '') {
+      return String(properties[key])
+    }
+  }
+
+  return ''
 }
 
 function mergeAsSingleFeature(collection, name) {
