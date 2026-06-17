@@ -106,6 +106,12 @@ button {
   font-weight: 700;
 }
 
+.loading.error {
+  padding: 24px;
+  color: #8d2f2f;
+  text-align: center;
+}
+
 .panel {
   display: flex;
   flex-direction: column;

@@ -8,6 +8,7 @@ const MAP_NAME = 'guangdong-hk-macau'
 
 const chartEl = ref<HTMLDivElement | null>(null)
 const loading = ref(true)
+const loadError = ref('')
 const selectedCity = ref<CityName>('广州市')
 const isDark = ref(false)
 const levels = reactive<Record<CityName, number>>(createInitialLevels())
@@ -22,9 +23,16 @@ onMounted(async () => {
   await nextTick()
   if (!chartEl.value) return
 
-  chart = echarts.init(chartEl.value)
-  const mapData = await loadGuangdongMap()
-  echarts.registerMap(MAP_NAME, mapData as any)
+  try {
+    chart = echarts.init(chartEl.value)
+    const mapData = await loadGuangdongMap()
+    echarts.registerMap(MAP_NAME, mapData as any)
+  }
+  catch (error) {
+    loadError.value = error instanceof Error ? error.message : String(error)
+    loading.value = false
+    return
+  }
 
   chart.on('click', (params) => {
     const name = params.name as CityName
@@ -220,7 +228,10 @@ function renderChart() {
 
     <section class="workspace">
       <div class="map-card">
-        <div v-if="loading" class="loading">地图加载中...</div>
+      <div v-if="loading" class="loading">地图加载中...</div>
+        <div v-else-if="loadError" class="loading error">
+          真实地图数据加载失败，请稍后刷新页面或检查网络。
+        </div>
         <div ref="chartEl" class="chart" />
       </div>
 

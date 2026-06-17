@@ -14,9 +14,21 @@ export type GeoJson = {
   features: GeoJsonFeature[]
 }
 
-const MAP_SOURCES = [
+const GUANGDONG_SOURCES = [
+  'https://cdn.jsdelivr.net/gh/d3cn/data@master/json/geo/china/province-city/guangdong.geojson',
+  'https://raw.githubusercontent.com/d3cn/data/master/json/geo/china/province-city/guangdong.geojson',
   'https://geo.datav.aliyun.com/areas_v3/bound/440000_full.json',
+]
+
+const HONG_KONG_SOURCES = [
+  'https://cdn.jsdelivr.net/gh/mouday/echarts-map@master/echarts-4.2.1-rc1-map/json/province/xianggang.json',
+  'https://raw.githubusercontent.com/mouday/echarts-map/master/echarts-4.2.1-rc1-map/json/province/xianggang.json',
   'https://geo.datav.aliyun.com/areas_v3/bound/810000.json',
+]
+
+const MACAU_SOURCES = [
+  'https://cdn.jsdelivr.net/gh/mouday/echarts-map@master/echarts-4.2.1-rc1-map/json/province/aomen.json',
+  'https://raw.githubusercontent.com/mouday/echarts-map/master/echarts-4.2.1-rc1-map/json/province/aomen.json',
   'https://geo.datav.aliyun.com/areas_v3/bound/820000.json',
 ]
 
@@ -51,30 +63,31 @@ const aliasMap: Record<string, CityName> = {
 }
 
 export async function loadGuangdongMap(): Promise<GeoJson> {
-  try {
-    const collections = await Promise.all(
-      MAP_SOURCES.map(async (url) => {
-        const response = await fetch(url)
-        if (!response.ok) throw new Error(`地图数据加载失败：${url}`)
-        return response.json() as Promise<GeoJson>
-      }),
-    )
+  const [guangdong, hongKong, macau] = await Promise.all([
+    fetchFirst(GUANGDONG_SOURCES),
+    fetchFirst(HONG_KONG_SOURCES),
+    fetchFirst(MACAU_SOURCES),
+  ])
 
-    const features = collections
-      .flatMap(item => item.features || [])
-      .map(normalizeFeature)
-      .filter(feature => CITY_LIST.includes(feature.properties.name as CityName))
+  const cityFeatures = guangdong.features
+    .map(normalizeFeature)
+    .filter(feature => CITY_LIST.includes(feature.properties.name as CityName))
+    .filter(feature => feature.properties.name !== '香港特别行政区')
+    .filter(feature => feature.properties.name !== '澳门特别行政区')
 
-    if (features.length >= CITY_LIST.length - 2) {
-      return { type: 'FeatureCollection', features }
-    }
+  const features = [
+    ...cityFeatures,
+    mergeAsSingleFeature(hongKong, '香港特别行政区'),
+    mergeAsSingleFeature(macau, '澳门特别行政区'),
+  ]
 
-    throw new Error('地图数据不完整，已使用备用轮廓')
+  const names = new Set(features.map(feature => feature.properties.name))
+  const missing = CITY_LIST.filter(name => !names.has(name))
+  if (missing.length) {
+    throw new Error(`地图数据缺少：${missing.join('、')}`)
   }
-  catch (error) {
-    console.warn(error)
-    return createFallbackMap()
-  }
+
+  return { type: 'FeatureCollection', features }
 }
 
 function normalizeFeature(feature: GeoJsonFeature): GeoJsonFeature {
@@ -89,52 +102,38 @@ function normalizeFeature(feature: GeoJsonFeature): GeoJsonFeature {
   }
 }
 
-function createFallbackMap(): GeoJson {
-  const boxes: Record<CityName, [number, number, number, number]> = {
-    韶关市: [112.3, 24.6, 114.7, 25.6],
-    清远市: [111.7, 23.4, 113.8, 24.7],
-    梅州市: [115.0, 23.5, 116.8, 24.6],
-    河源市: [114.0, 23.2, 115.7, 24.2],
-    肇庆市: [111.3, 22.7, 112.8, 23.7],
-    广州市: [112.8, 22.8, 114.0, 23.7],
-    惠州市: [114.0, 22.6, 115.4, 23.5],
-    潮州市: [116.3, 23.4, 117.2, 24.0],
-    揭阳市: [115.6, 22.9, 116.7, 23.6],
-    汕头市: [116.5, 23.1, 117.3, 23.6],
-    云浮市: [111.0, 22.2, 112.4, 23.1],
-    佛山市: [112.5, 22.6, 113.4, 23.1],
-    东莞市: [113.5, 22.7, 114.2, 23.2],
-    深圳市: [113.8, 22.4, 114.7, 22.9],
-    香港特别行政区: [113.85, 22.15, 114.45, 22.55],
-    澳门特别行政区: [113.45, 22.08, 113.65, 22.28],
-    中山市: [113.1, 22.2, 113.7, 22.7],
-    珠海市: [113.1, 21.9, 113.8, 22.4],
-    江门市: [112.0, 21.8, 113.2, 22.7],
-    阳江市: [111.4, 21.4, 112.6, 22.2],
-    茂名市: [110.4, 21.4, 111.5, 22.4],
-    湛江市: [109.4, 20.2, 111.0, 21.6],
-    汕尾市: [114.6, 22.4, 115.8, 23.0],
+async function fetchFirst(urls: string[]): Promise<GeoJson> {
+  const errors: string[] = []
+
+  for (const url of urls) {
+    try {
+      const response = await fetch(url)
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
+      const geoJson = await response.json() as GeoJson
+      if (!geoJson.features?.length) throw new Error('GeoJSON 没有 features')
+      return geoJson
+    }
+    catch (error) {
+      errors.push(`${url}：${String(error)}`)
+    }
   }
 
-  return {
-    type: 'FeatureCollection',
-    features: CITY_LIST.map(name => ({
-      type: 'Feature',
-      properties: { name },
-      geometry: {
-        type: 'Polygon',
-        coordinates: [boxToPolygon(boxes[name])],
-      },
-    })),
-  }
+  throw new Error(`真实地图数据加载失败。\n${errors.join('\n')}`)
 }
 
-function boxToPolygon([minLng, minLat, maxLng, maxLat]: [number, number, number, number]) {
-  return [
-    [minLng, minLat],
-    [maxLng, minLat],
-    [maxLng, maxLat],
-    [minLng, maxLat],
-    [minLng, minLat],
-  ]
+function mergeAsSingleFeature(collection: GeoJson, name: CityName): GeoJsonFeature {
+  const coordinates = collection.features.flatMap((feature) => {
+    if (feature.geometry.type === 'Polygon') return [feature.geometry.coordinates]
+    if (feature.geometry.type === 'MultiPolygon') return feature.geometry.coordinates as unknown[]
+    return []
+  })
+
+  return {
+    type: 'Feature',
+    properties: { name },
+    geometry: {
+      type: 'MultiPolygon',
+      coordinates,
+    },
+  }
 }
