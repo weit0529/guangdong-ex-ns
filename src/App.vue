@@ -156,8 +156,9 @@ function renderChart() {
       {
         type: 'map',
         map: MAP_NAME,
-        roam: true,
-        zoom: 1.08,
+        roam: false,
+        layoutCenter: ['51%', '52%'],
+        layoutSize: '88%',
         selectedMode: false,
         label: {
           show: true,
@@ -206,13 +207,15 @@ function renderChart() {
           series: [
             {
               roam: false,
+              layoutCenter: ['50%', '50%'],
+              layoutSize: '84%',
               label: { fontSize: 8 },
             },
           ],
         },
       },
     ],
-  }, true)
+  })
 }
 </script>
 
