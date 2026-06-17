@@ -24,7 +24,7 @@ onMounted(async () => {
 
   chart = echarts.init(chartEl.value)
   const mapData = await loadGuangdongMap()
-  echarts.registerMap(MAP_NAME, mapData)
+  echarts.registerMap(MAP_NAME, mapData as any)
 
   chart.on('click', (params) => {
     const name = params.name as CityName
